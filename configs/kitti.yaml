@@ -1,0 +1,44 @@
+paths:
+  dataset_root: /media/pc/D/datasets/kitti
+  raw_mesh_dir: /media/pc/D/datasets/kitti/raw_meshes
+  mask_dir: /media/pc/D/datasets/kitti/masks
+  cameras_json: /media/pc/D/datasets/kitti/cameras.json
+
+model:
+  num_classes: 30
+  K: 2048
+loss:
+  w_2d: 1.0
+  w_3d: 1.0
+  scale_reg_weight: 0.1
+  repulsion_reg_weight: 0.1
+  volume_reg_weight: 0.01
+optim:
+  lr: 1.0e-3
+train:
+  batch_size: 4
+  epochs: 50
+  out_dir: outputs/checkpoints/kitti
+  num_workers: 4
+monitoring:
+  log_interval: 200
+  alpha_low_threshold: 0.1
+  alpha_high_threshold: 0.95
+  tensorboard:
+    enabled: true
+    log_dir: outputs/tensorboard/kitti
+    unique_run_subdir: true
+    write_config: true
+    scalar_interval: 20
+    histogram_interval: 100
+    image_interval: 200
+    multiview_interval: 2000
+evaluation:
+  template_samples: 5000
+  fscore_tau: 0.02
+  occ_threshold: 0.5
+  chunk_size: 1024
+data:
+  dataset_name: kitti
+  index_file: outputs/preprocessed/kitti/index_train.npy
+  categories: [car, van, truck]

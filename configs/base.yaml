@@ -1,0 +1,12 @@
+model:
+  num_classes: 30
+  K: 2048
+loss:
+  w_2d: 1.0
+  w_3d: 1.0
+optim:
+  lr: 1.0e-3
+train:
+  batch_size: 4
+  epochs: 50
+  out_dir: outputs/checkpoints

@@ -1,0 +1,21 @@
+name: gcp-prior
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch>=2.2
+  - torchvision
+  - pytorch-cuda=12.1
+  - numpy
+  - scipy
+  - scikit-image
+  - scikit-learn
+  - trimesh
+  - pytorch3d
+  - pyyaml
+  - opencv
+  - tqdm
+  - matplotlib
+  - tensorboard
