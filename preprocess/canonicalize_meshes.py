@@ -21,6 +21,18 @@ def canonicalize_directory(source: Path, destination: Path, unit: str = "sphere"
     meshes = sorted(source.rglob("*.obj")) + sorted(source.rglob("*.ply"))
     for mesh_path in tqdm(meshes, desc="canonicalize"):
         mesh = trimesh.load(mesh_path, process=False)
+        # Some files load as a Scene (multiple geometries). Convert to a single Trimesh.
+        if isinstance(mesh, trimesh.Scene):
+            try:
+                mesh = trimesh.util.concatenate(list(mesh.geometry.values()))
+            except Exception:
+                dumped = mesh.dump()
+                if isinstance(dumped, (list, tuple)) and len(dumped) > 0:
+                    mesh = trimesh.util.concatenate(
+                        [m for m in dumped if isinstance(m, trimesh.Trimesh)]
+                    )
+                else:
+                    raise
         canon_mesh, transform = canonicalize(mesh, unit=unit)
         rel_path = mesh_path.relative_to(source)
         out_path = destination / rel_path
