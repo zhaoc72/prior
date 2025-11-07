@@ -12,13 +12,15 @@ from utils.geom import canonicalize
 
 def canonicalize_directory(source: Path, destination: Path, unit: str = "sphere") -> None:
     destination.mkdir(parents=True, exist_ok=True)
-    meshes = sorted(source.glob("*.obj")) + sorted(source.glob("*.ply"))
+    meshes = sorted(source.rglob("*.obj")) + sorted(source.rglob("*.ply"))
     for mesh_path in tqdm(meshes, desc="canonicalize"):
         mesh = trimesh.load(mesh_path, process=False)
         canon_mesh, transform = canonicalize(mesh, unit=unit)
-        out_path = destination / mesh_path.name
+        rel_path = mesh_path.relative_to(source)
+        out_path = destination / rel_path
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         canon_mesh.export(out_path)
-        meta_path = destination / f"{mesh_path.stem}_transform.npz"
+        meta_path = out_path.with_name(f"{out_path.stem}_transform.npz")
         np.savez(
             meta_path,
             translation=transform["translation"],

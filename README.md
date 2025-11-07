@@ -47,7 +47,7 @@ paths:
   dataset_root: /media/pc/D/datasets/pix3d        # Pix3D 官方根目录（包含 model/、mask/ 等）
   raw_mesh_dir: model                              # 相对 `dataset_root`，沿用官方的 model/ 子目录
   mask_dir: mask                                   # 同理，沿用官方的 mask/ 子目录
-  cameras_json: cameras.json                       # 相机/标注文件可填相对或绝对路径
+  annotations_json: pix3d.json                     # 使用官方发布的 pix3d.json 注释文件
 ```
 
 其他数据集同理，分别在 `configs/scannetv2.yaml`、`configs/kitti.yaml`、`configs/vkitti2.yaml` 中填写，务必引用官方提供的目录名称（例如 ScanNet 的 `scans/`、`scannet_frames_25k/`，KITTI 的 `training/` 子目录，vKITTI2 的 `SceneXX/` 树形结构），而非自行重命名。脚本会自动从配置中读取这些字段并在仓库内的 `outputs/preprocessed/<dataset>/` 生成索引文件。
@@ -62,7 +62,8 @@ bash scripts/preprocess_pix3d.sh configs/pix3d.yaml
 默认输出目录由配置文件的 `data.index_file` 推断（即 `outputs/preprocessed/pix3d`）。流程依次执行：
 1. `preprocess/canonicalize_meshes.py`：将 mesh 平移至原点、缩放至单位球并统一朝向，输出 canonical mesh 与变换参数。
 2. `preprocess/sample_points_occ.py`：从 canonical mesh 表面与体内/体外采样，生成 Occupancy/TSDF 监督点。
-3. `preprocess/build_index.py`：整合 mask、相机参数、Occupancy 路径等信息，生成 `index_*.npy`。
+3. `preprocess/prepare_pix3d_metadata.py`：把官方 `pix3d.json` 注释整理为摄像机参数文件 `outputs/preprocessed/pix3d/cameras.json`。
+4. `preprocess/build_index.py`：整合 mask、相机参数、Occupancy 路径等信息，生成 `index_*.npy`。
 
 其他数据集对应脚本：
 ```bash
@@ -77,10 +78,11 @@ bash scripts/preprocess_vkitti2.sh configs/vkitti2.yaml
 python preprocess/build_index.py \
   --mask_dir /media/pc/D/datasets/pix3d/mask \
   --occ_dir outputs/preprocessed/pix3d/occ_npz \
-  --cams /media/pc/D/datasets/pix3d/cameras.json \
+  --cams outputs/preprocessed/pix3d/cameras.json \
   --split val \
   --out outputs/preprocessed/pix3d/index_val.npy
 ```
+> `cameras.json` 由预处理脚本自动从官方 `pix3d.json` 转换生成，可根据需要手动指定不同的 split。
 其余数据集同理，将路径替换为配置文件中填写的值。
 
 ---

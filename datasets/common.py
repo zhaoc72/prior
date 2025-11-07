@@ -1,6 +1,9 @@
 """Common dataset utilities for Gaussian category priors."""
 from __future__ import annotations
 
+from pathlib import Path
+
+import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -20,10 +23,17 @@ class GCPSamples(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         item = self.items[idx]
-        mask = np.load(item["mask_npy"]).astype(np.float32)
+        mask_path = Path(item["mask_npy"])
+        if mask_path.suffix.lower() == ".npy":
+            mask_array = np.load(mask_path).astype(np.float32)
+        else:
+            image = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+            if image is None:
+                raise FileNotFoundError(f"Mask file not found: {mask_path}")
+            mask_array = (image > 127).astype(np.float32)
         occ = np.load(item["occ_npz"])
         sample = {
-            "mask": torch.from_numpy(mask[None]),
+            "mask": torch.from_numpy(mask_array[None]),
             "K": torch.tensor(np.array(item["K"], dtype=np.float32)),
             "Rt": torch.tensor(np.array(item["Rt"], dtype=np.float32)),
             "occ_pts": torch.tensor(occ["xyz"].astype(np.float32)),

@@ -2,7 +2,7 @@ paths:
   dataset_root: /media/pc/D/datasets/pix3d
   raw_mesh_dir: model
   mask_dir: mask
-  cameras_json: cameras.json
+  annotations_json: pix3d.json
 
 model:
   num_classes: 30
