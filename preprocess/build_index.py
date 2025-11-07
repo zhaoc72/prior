@@ -3,9 +3,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
+
+# Allow running as a script without installing the package.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from utils.io import save_index
 
 def build_index(mask_dir: Path, occ_dir: Path, cameras_json: Path, split: str) -> dict:

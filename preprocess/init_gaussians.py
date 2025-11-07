@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 from tqdm import tqdm
+
+# Allow running as a script without installing the package.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from utils.geom import init_gaussians_from_pointcloud
 
