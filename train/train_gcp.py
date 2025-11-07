@@ -62,9 +62,6 @@ def train(config_path: Path) -> None:
     cfg = yaml.safe_load(Path(config_path).read_text())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-<<<<<<< ours
-    dataset = GCPSamples(cfg["data"]["index_file"], categories=cfg["data"].get("categories"))
-=======
     data_cfg = cfg.get("data", {})
     dataset_name = data_cfg.get("dataset_name")
     if not dataset_name:
@@ -73,7 +70,6 @@ def train(config_path: Path) -> None:
             dataset_name = Path(index_path).parent.name
 
     dataset = GCPSamples(cfg["data"]["index_file"], categories=data_cfg.get("categories"))
->>>>>>> theirs
     dataloader = DataLoader(
         dataset,
         batch_size=cfg["train"]["batch_size"],
@@ -107,14 +103,10 @@ def train(config_path: Path) -> None:
 
     output_dir = Path(cfg["train"]["out_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
-<<<<<<< ours
-    metrics_file = output_dir / "training_metrics.jsonl"
-=======
     metrics_filename = "training_metrics.jsonl"
     if dataset_name:
         metrics_filename = f"training_metrics_{dataset_name}.jsonl"
     metrics_file = output_dir / metrics_filename
->>>>>>> theirs
     if metrics_file.exists():
         metrics_file.unlink()
 
@@ -262,14 +254,10 @@ def train(config_path: Path) -> None:
                     handle.write(json.dumps(log_entry) + "\n")
                 metric_logger.reset()
     finally:
-<<<<<<< ours
-        torch.save({"model": model.state_dict()}, output_dir / "gcp_final.pt")
-=======
         ckpt_name = "gcp_final.pt"
         if dataset_name:
             ckpt_name = f"gcp_final_{dataset_name}.pt"
         torch.save({"model": model.state_dict()}, output_dir / ckpt_name)
->>>>>>> theirs
         if writer:
             writer.close()
 
