@@ -1,8 +1,8 @@
 paths:
   dataset_root: /media/pc/D/datasets/kitti
-  raw_mesh_dir: /media/pc/D/datasets/kitti/raw_meshes
-  mask_dir: /media/pc/D/datasets/kitti/masks
-  cameras_json: /media/pc/D/datasets/kitti/cameras.json
+  raw_mesh_dir: training/velodyne
+  mask_dir: training/image_2
+  cameras_json: training/calib/cameras.json
 
 model:
   num_classes: 30

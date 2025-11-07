@@ -1,3 +1,9 @@
+paths:
+  dataset_root: /media/pc/D/datasets/pix3d
+  raw_mesh_dir: model
+  mask_dir: mask
+  cameras_json: cameras.json
+
 model:
   num_classes: 30
   K: 2048

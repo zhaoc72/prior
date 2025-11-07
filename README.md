@@ -40,24 +40,24 @@ gcp_prior/
 | vKITTI2  | `/media/pc/D/datasets/vkitti2`        |
 
 ### 2.2 在配置文件中写明原始数据路径
-不再通过命令行传参或建立符号链接。请直接在对应数据集的配置文件中填写原始路径，例如在 `configs/pix3d.yaml` 中：
+不再通过命令行传参或建立符号链接。请直接在对应数据集的配置文件中填写原始路径，且保持与官方发布的数据目录结构一致，例如在 `configs/pix3d.yaml` 中：
 
 ```yaml
 paths:
-  dataset_root: /media/pc/D/datasets/pix3d
-  raw_mesh_dir: /media/pc/D/datasets/pix3d/raw_meshes
-  mask_dir: /media/pc/D/datasets/pix3d/masks
-  cameras_json: /media/pc/D/datasets/pix3d/cameras.json
+  dataset_root: /media/pc/D/datasets/pix3d        # Pix3D 官方根目录（包含 model/、mask/ 等）
+  raw_mesh_dir: model                              # 相对 `dataset_root`，沿用官方的 model/ 子目录
+  mask_dir: mask                                   # 同理，沿用官方的 mask/ 子目录
+  cameras_json: cameras.json                       # 相机/标注文件可填相对或绝对路径
 ```
 
-其他数据集同理，分别在 `configs/scannetv2.yaml`、`configs/kitti.yaml`、`configs/vkitti2.yaml` 中填写。脚本会自动从配置中读取这些字段并在仓库内的 `outputs/preprocessed/<dataset>/` 生成索引文件。
+其他数据集同理，分别在 `configs/scannetv2.yaml`、`configs/kitti.yaml`、`configs/vkitti2.yaml` 中填写，务必引用官方提供的目录名称（例如 ScanNet 的 `scans/`、`scannet_frames_25k/`，KITTI 的 `training/` 子目录，vKITTI2 的 `SceneXX/` 树形结构），而非自行重命名。脚本会自动从配置中读取这些字段并在仓库内的 `outputs/preprocessed/<dataset>/` 生成索引文件。
 
 ---
 ## 3. 预处理流程
 
 每个数据集都需要运行对应脚本以完成 canonical 对齐、Occupancy 采样与索引构建。脚本会自动读取配置文件中的 `paths.*` 字段，例如：
 ```bash
-bash scripts/preprocess_pix3d.sh [configs/pix3d.yaml]
+bash scripts/preprocess_pix3d.sh configs/pix3d.yaml
 ```
 默认输出目录由配置文件的 `data.index_file` 推断（即 `outputs/preprocessed/pix3d`）。流程依次执行：
 1. `preprocess/canonicalize_meshes.py`：将 mesh 平移至原点、缩放至单位球并统一朝向，输出 canonical mesh 与变换参数。
@@ -66,16 +66,16 @@ bash scripts/preprocess_pix3d.sh [configs/pix3d.yaml]
 
 其他数据集对应脚本：
 ```bash
-bash scripts/preprocess_scannetv2.sh [configs/scannetv2.yaml]
-bash scripts/preprocess_kitti.sh [configs/kitti.yaml]
-bash scripts/preprocess_vkitti2.sh [configs/vkitti2.yaml]
+bash scripts/preprocess_scannetv2.sh configs/scannetv2.yaml
+bash scripts/preprocess_kitti.sh configs/kitti.yaml
+bash scripts/preprocess_vkitti2.sh configs/vkitti2.yaml
 ```
 > 预处理时间依赖于 mesh 数量与采样点数；可在脚本内调整 `--n_surf`、`--n_uniform` 等参数控制精度与耗时。
 
 若需要验证/测试索引，可在预处理完成后手动执行：
 ```bash
 python preprocess/build_index.py \
-  --mask_dir /media/pc/D/datasets/pix3d/masks \
+  --mask_dir /media/pc/D/datasets/pix3d/mask \
   --occ_dir outputs/preprocessed/pix3d/occ_npz \
   --cams /media/pc/D/datasets/pix3d/cameras.json \
   --split val \
@@ -102,10 +102,10 @@ python preprocess/build_index.py \
 ### 5.1 直接使用脚本
 每个数据集提供一键训练 + 导出脚本（包含 TensorBoard 配置）：
 ```bash
-bash scripts/train_pix3d.sh [configs/pix3d.yaml]
-bash scripts/train_scannetv2.sh [configs/scannetv2.yaml]
-bash scripts/train_kitti.sh [configs/kitti.yaml]
-bash scripts/train_vkitti2.sh [configs/vkitti2.yaml]
+bash scripts/train_pix3d.sh configs/pix3d.yaml
+bash scripts/train_scannetv2.sh configs/scannetv2.yaml
+bash scripts/train_kitti.sh configs/kitti.yaml
+bash scripts/train_vkitti2.sh configs/vkitti2.yaml
 ```
 脚本默认：
 - 调用 `python train/train_gcp.py --config configs/<dataset>.yaml`

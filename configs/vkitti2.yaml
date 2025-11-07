@@ -1,8 +1,8 @@
 paths:
   dataset_root: /media/pc/D/datasets/vkitti2
-  raw_mesh_dir: /media/pc/D/datasets/vkitti2/raw_meshes
-  mask_dir: /media/pc/D/datasets/vkitti2/masks
-  cameras_json: /media/pc/D/datasets/vkitti2/cameras.json
+  raw_mesh_dir: vkitti_2.0.3_meshes
+  mask_dir: vkitti_2.0.3_scenegt
+  cameras_json: vkitti_2.0.3_extrinsics/cameras.json
 
 model:
   num_classes: 30

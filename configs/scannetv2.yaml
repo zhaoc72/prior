@@ -1,8 +1,8 @@
 paths:
   dataset_root: /media/pc/D/datasets/scannet
-  raw_mesh_dir: /media/pc/D/datasets/scannet/raw_meshes
-  mask_dir: /media/pc/D/datasets/scannet/masks
-  cameras_json: /media/pc/D/datasets/scannet/cameras.json
+  raw_mesh_dir: scans
+  mask_dir: tasks/scannet_frames_25k
+  cameras_json: tasks/scannet_frames_25k/cameras.json
 
 model:
   num_classes: 30
