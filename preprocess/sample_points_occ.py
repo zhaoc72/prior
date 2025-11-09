@@ -97,6 +97,8 @@ def _run_with_executor(
             mesh_path = futures[future]
             try:
                 future.result()
+            except BrokenProcessPool as exc:
+                raise exc
             except Exception as exc:  # pragma: no cover - surfaces errors are rare
                 raise RuntimeError(f"Failed to process {mesh_path}") from exc
 
