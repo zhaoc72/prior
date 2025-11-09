@@ -259,6 +259,9 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
     _ensure_output_dirs(paths)
 
+    available_cpu = os.cpu_count() or 1
+    default_canon_workers = min(64, available_cpu)
+
     print("Pix3D preprocessing configuration:")
     print(f"  Config: {config_path}")
     print(f"  Dataset root: {paths.dataset_root if paths.dataset_root else '(not set)'}")
@@ -267,11 +270,17 @@ def run_pipeline(args: argparse.Namespace) -> None:
     print(f"  Occupancy outputs: {paths.occupancy_dir}")
     print(f"  Cameras JSON: {paths.cameras_json}")
     print(f"  Index file: {paths.index_file}")
-    canonicalize_workers = overrides.canonicalize if overrides.canonicalize else 64
+    canonicalize_workers = (
+        overrides.canonicalize if overrides.canonicalize else default_canon_workers
+    )
     print(
         "  Canonicalize workers: "
         f"{canonicalize_workers}"
-        + (" (override from CLI/environment)" if overrides.canonicalize else " (default)")
+        + (
+            " (override from CLI/environment)"
+            if overrides.canonicalize
+            else f" (default, min(64, available CPUs={available_cpu}))"
+        )
     )
     if overrides.index:
         print(f"  Index workers: {overrides.index} (build_index runs single-threaded)")

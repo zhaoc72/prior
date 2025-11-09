@@ -126,7 +126,7 @@ bash scripts/preprocess_pix3d.sh configs/pix3d.yaml
 3. **prepare_pix3d_metadata.py**：转换官方注释为摄像机参数 JSON。
 4. **build_index.py**：整合 mask、occupancy、摄像机和类别信息，生成训练/验证所需的索引文件。
 
-该脚本会自动调用 `python -m preprocess.pix3d_pipeline`，并在开始时打印解析后的路径、执行器以及各阶段的并发配置。流水线默认使用进程池执行 occupancy 采样；额外的命令行参数（例如 `--recompute-occ` 或 `--occ-executor thread`）会透传给 Python 入口，可用于覆盖默认行为。
+该脚本会自动调用 `python -m preprocess.pix3d_pipeline`，并在开始时打印解析后的路径、执行器以及各阶段的并发配置。为了避免长流程占满内存、触发操作系统直接杀死进程（`Killed`），当前流水线默认将 occupancy 采样改成串行执行；如需尝试并行，可在命令行显式指定 `--occ-executor thread|process` 并把 `--occ-workers` 设为合适的值。
 
 其他数据集使用相应脚本：
 ```bash
@@ -153,11 +153,10 @@ python preprocess/sample_points_occ.py \
   --out <occ_output_dir> \
   --n_surf 40000 \
   --n_uniform 60000 \
-  --workers 64 \
-  --executor auto \
-  --skip_bad_mesh
+  --workers 1 \
+  --executor auto
 ```
-- `--executor`：`auto`（默认，优先进程池，失败后自动降档至线程池）、`process`、`thread` 可选。
+- `--executor`：`auto`（默认优先试进程池，但在仓库提供的 Pix3D 流水线中会强制串行）、`process`、`thread` 可选；串行模式下如需降低峰值内存，可适当减小 `--n_uniform`/`--n_surf`。
 - `--workers`：并发任务数；在 `auto`/`process` 模式下表示进程数，在 `thread` 模式下表示线程数。
 - `--no_skip_existing`：重新生成已存在的 `.npz` 文件。
 - `--skip_bad_mesh`：遇到损坏网格时跳过并记录到 `failed.txt`。

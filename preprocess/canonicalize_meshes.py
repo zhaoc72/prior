@@ -55,7 +55,7 @@ def canonicalize_directory(
     if not meshes:
         return
 
-    worker_count = 1 if not workers or workers <= 1 else workers
+    worker_count = 1 if not workers or workers <= 1 else min(workers, len(meshes))
     if worker_count <= 1:
         for mesh_path in tqdm(meshes, desc="canonicalize"):
             _canonicalize_single(mesh_path, source, destination, unit)

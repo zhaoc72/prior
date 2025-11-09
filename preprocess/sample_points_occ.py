@@ -19,26 +19,48 @@ from pathlib import Path
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 
+import gc
+from functools import partial
+
 import numpy as np
 import trimesh
+from numpy.random import default_rng
 from tqdm import tqdm
+
+
+_RNG = default_rng()
+
+def _as_float32(array: np.ndarray) -> np.ndarray:
+    """Return ``array`` as float32 without copying when already the right dtype."""
+
+    if array.dtype == np.float32:
+        return array
+    return array.astype(np.float32, copy=False)
+
 
 def sample_points(
     mesh: trimesh.Trimesh, n_surface: int, n_uniform: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Sample surface and occupancy points with a low-memory footprint."""
+
     surface, _ = trimesh.sample.sample_surface(mesh, n_surface)
-    bounds_min = mesh.bounds[0]
-    bounds_max = mesh.bounds[1]
-    uniform = np.random.uniform(bounds_min, bounds_max, size=(n_uniform, 3))
-    inside = mesh.contains(uniform)
-    points = np.concatenate([surface, uniform], axis=0)
-    labels = np.concatenate([np.ones(len(surface)), inside.astype(np.float32)], axis=0)
-    return (
-        points.astype(np.float32),
-        labels.astype(np.float32),
-        surface.astype(np.float32),
-        uniform.astype(np.float32),
-    )
+    surface = _as_float32(surface)
+
+    bounds_min = _as_float32(mesh.bounds[0])
+    bounds_max = _as_float32(mesh.bounds[1])
+    uniform = _RNG.uniform(bounds_min, bounds_max, size=(n_uniform, 3), dtype=np.float32)
+    inside = mesh.contains(uniform.astype(np.float64))
+
+    total_points = n_surface + n_uniform
+    points = np.empty((total_points, 3), dtype=np.float32)
+    points[:n_surface] = surface
+    points[n_surface:] = uniform
+
+    labels = np.empty(total_points, dtype=np.float32)
+    labels[:n_surface] = 1.0
+    labels[n_surface:] = inside.astype(np.float32, copy=False)
+
+    return points, labels, surface, uniform
 
 def _process_single(
     mesh_path: Path,
@@ -61,6 +83,7 @@ def _process_single(
         n_surface=int(len(surf)),
         n_uniform=int(len(uniform)),
     )
+    del mesh, pts, lbl, surf, uniform
 
 
 def _run_with_executor(
@@ -110,8 +133,16 @@ def _run_sequential(
     n_surface: int,
     n_uniform: int,
 ) -> None:
+    process_one = partial(
+        _process_single,
+        mesh_dir=mesh_dir,
+        out_dir=out_dir,
+        n_surface=n_surface,
+        n_uniform=n_uniform,
+    )
     for mesh_path in tqdm(meshes, desc="occ_sampling-sequential"):
-        _process_single(mesh_path, mesh_dir, out_dir, n_surface, n_uniform)
+        process_one(mesh_path)
+        gc.collect()
 
 
 def _run_thread_pool(
