@@ -80,15 +80,39 @@ OUT_DIR=$(dirname "$INDEX_FILE")
 
 mkdir -p "$OUT_DIR"
 
-"$PYTHON" preprocess/canonicalize_meshes.py \
-  --src "$RAW_MESH_DIR" \
-  --dst "$OUT_DIR/meshes"
+resolve_workers_var() {
+  local value=""
+  if [[ -n "${1:-}" ]]; then
+    value="$1"
+  elif [[ -n "${2:-}" ]]; then
+    value="$2"
+  elif [[ -n "${3:-}" ]]; then
+    value="$3"
+  fi
+  printf '%s' "$value"
+}
 
-"$PYTHON" preprocess/sample_points_occ.py \
-  --mesh_dir "$OUT_DIR/meshes" \
-  --out "$OUT_DIR/occ_npz" \
-  --n_surf 40000 \
+CANON_WORKERS=$(resolve_workers_var "${PIX3D_CANON_WORKERS:-}" "${PREPROCESS_CANON_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
+OCC_WORKERS=$(resolve_workers_var "${PIX3D_OCC_WORKERS:-}" "${PREPROCESS_OCC_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
+INDEX_WORKERS=$(resolve_workers_var "${PIX3D_INDEX_WORKERS:-}" "${PREPROCESS_INDEX_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
+
+CANON_ARGS=(preprocess/canonicalize_meshes.py --src "$RAW_MESH_DIR" --dst "$OUT_DIR/meshes")
+if [[ -n "$CANON_WORKERS" ]]; then
+  CANON_ARGS+=(--workers "$CANON_WORKERS")
+fi
+"$PYTHON" "${CANON_ARGS[@]}"
+
+OCC_ARGS=(
+  preprocess/sample_points_occ.py
+  --mesh_dir "$OUT_DIR/meshes"
+  --out "$OUT_DIR/occ_npz"
+  --n_surf 40000
   --n_uniform 60000
+)
+if [[ -n "$OCC_WORKERS" ]]; then
+  OCC_ARGS+=(--workers "$OCC_WORKERS")
+fi
+"$PYTHON" "${OCC_ARGS[@]}"
 
 GENERATED_CAMERAS="$OUT_DIR/cameras.json"
 CONVERT_ARGS=(
@@ -104,9 +128,15 @@ fi
 
 "$PYTHON" preprocess/prepare_pix3d_metadata.py "${CONVERT_ARGS[@]}"
 
-"$PYTHON" preprocess/build_index.py \
-  --mask_dir "$MASK_DIR" \
-  --occ_dir "$OUT_DIR/occ_npz" \
-  --cams "$GENERATED_CAMERAS" \
-  --out "$INDEX_FILE" \
+INDEX_ARGS=(
+  preprocess/build_index.py
+  --mask_dir "$MASK_DIR"
+  --occ_dir "$OUT_DIR/occ_npz"
+  --cams "$GENERATED_CAMERAS"
+  --out "$INDEX_FILE"
   --split train
+)
+if [[ -n "$INDEX_WORKERS" ]]; then
+  INDEX_ARGS+=(--workers "$INDEX_WORKERS")
+fi
+"$PYTHON" "${INDEX_ARGS[@]}"

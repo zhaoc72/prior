@@ -83,6 +83,15 @@ bash scripts/preprocess_vkitti2.sh configs/vkitti2.yaml
 | `preprocess/sample_points_occ.py` | `--workers`、`--no_skip_existing` | 并行采样表面点与 Occupancy 点，并默认跳过已生成的 `.npz`；如需强制重算可加 `--no_skip_existing`。脚本会在遇到 `BrokenProcessPool` 时自动缩减进程数再重试，如仍失败会切换到线程池继续并行处理，最后才退回单进程。 |
 | `preprocess/init_gaussians.py` | `--workers`、`--nn_jobs` | `--workers` 控制进程数，`--nn_jobs` 会传递给 `sklearn.NearestNeighbors`，用于控制每个进程内部的线程数（例如设置为 `8`）。 |
 
+> **一键脚本的并发控制**：例如 `scripts/preprocess_pix3d.sh` 会自动读取配置文件并串行调用上述 Python 脚本。若希望在一键脚本层面限制并发，可在运行前设置环境变量，例如：
+> ```bash
+> export PIX3D_CANON_WORKERS=32      # canonicalize_meshes.py 的 --workers
+> export PIX3D_OCC_WORKERS=32        # sample_points_occ.py 的 --workers
+> export PIX3D_INDEX_WORKERS=16      # build_index.py 的 --workers
+> bash scripts/preprocess_pix3d.sh configs/pix3d.yaml
+> ```
+> 若未显式设置，脚本内部会保持 Python 端的默认值（通常是 `os.cpu_count()`）。也可以统一设置 `PREPROCESS_WORKERS`，或使用 `PREPROCESS_CANON_WORKERS` / `PREPROCESS_OCC_WORKERS` / `PREPROCESS_INDEX_WORKERS` 在多个数据集脚本间共用默认值。
+
 建议在正式运行前手动执行一次以验证性能：
 
 ```bash
