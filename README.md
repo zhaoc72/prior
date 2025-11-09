@@ -108,6 +108,10 @@ python preprocess/init_gaussians.py \
   --nn_jobs 8
 ```
 
+> **关于 `BrokenProcessPool` 的提示**：部分第三方几何/线性代数库在 Linux 上采用 `fork` 后会出现段错误或被系统杀死，表现为主进程报错
+> `concurrent.futures.process.BrokenProcessPool`。脚本已强制使用 `spawn` 上下文并在异常发生时自动回退至单进程重试；如果仍然遇到该
+> 提示，请降低 `--workers` 或调低 `OMP_NUM_THREADS`/`MKL_NUM_THREADS`，并根据终端日志定位具体文件。
+
 > **线程/进程配比建议**：在 2×32 核 Intel Xeon 8336C + 256 GB 内存环境下，可先尝试 `workers × nn_jobs ≈ 64` 的组合，并通过 `htop` 或 `pidstat` 观察 CPU 利用率与上下文切换，必要时调整线程环境变量（`OMP_NUM_THREADS`、`MKL_NUM_THREADS`、`NUMEXPR_NUM_THREADS`）。
 
 若需要验证/测试索引，可在预处理完成后手动执行：

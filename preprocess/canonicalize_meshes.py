@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 
 import numpy as np
@@ -59,15 +61,27 @@ def canonicalize_directory(
             _canonicalize_single(mesh_path, source, destination, unit)
         return
 
-    with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        futures = [
-            executor.submit(
-                _canonicalize_single, mesh_path, source, destination, unit
-            )
-            for mesh_path in meshes
-        ]
-        for future in tqdm(as_completed(futures), total=len(futures), desc="canonicalize"):
-            future.result()
+    ctx = mp.get_context("spawn")
+    try:
+        with ProcessPoolExecutor(max_workers=worker_count, mp_context=ctx) as executor:
+            futures = [
+                executor.submit(
+                    _canonicalize_single, mesh_path, source, destination, unit
+                )
+                for mesh_path in meshes
+            ]
+            for future in tqdm(
+                as_completed(futures), total=len(futures), desc="canonicalize"
+            ):
+                future.result()
+    except BrokenProcessPool as exc:
+        print(
+            "Process pool crashed (likely due to native library fork-safety). "
+            "Falling back to sequential execution."
+        )
+        print(f"Original error: {exc}")
+        for mesh_path in tqdm(meshes, desc="canonicalize-fallback"):
+            _canonicalize_single(mesh_path, source, destination, unit)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
