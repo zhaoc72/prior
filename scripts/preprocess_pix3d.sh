@@ -80,7 +80,7 @@ OUT_DIR=$(dirname "$INDEX_FILE")
 
 mkdir -p "$OUT_DIR"
 
-resolve_workers_var() {
+resolve_override_var() {
   local value=""
   if [[ -n "${1:-}" ]]; then
     value="$1"
@@ -92,9 +92,10 @@ resolve_workers_var() {
   printf '%s' "$value"
 }
 
-CANON_WORKERS=$(resolve_workers_var "${PIX3D_CANON_WORKERS:-}" "${PREPROCESS_CANON_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
-OCC_WORKERS=$(resolve_workers_var "${PIX3D_OCC_WORKERS:-}" "${PREPROCESS_OCC_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
-INDEX_WORKERS=$(resolve_workers_var "${PIX3D_INDEX_WORKERS:-}" "${PREPROCESS_INDEX_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
+CANON_WORKERS=$(resolve_override_var "${PIX3D_CANON_WORKERS:-}" "${PREPROCESS_CANON_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
+OCC_WORKERS=$(resolve_override_var "${PIX3D_OCC_WORKERS:-}" "${PREPROCESS_OCC_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
+INDEX_WORKERS=$(resolve_override_var "${PIX3D_INDEX_WORKERS:-}" "${PREPROCESS_INDEX_WORKERS:-}" "${PREPROCESS_WORKERS:-}")
+OCC_EXECUTOR=$(resolve_override_var "${PIX3D_OCC_EXECUTOR:-}" "${PREPROCESS_OCC_EXECUTOR:-}" "${PREPROCESS_EXECUTOR:-}")
 
 CANON_ARGS=(preprocess/canonicalize_meshes.py --src "$RAW_MESH_DIR" --dst "$OUT_DIR/meshes")
 if [[ -n "$CANON_WORKERS" ]]; then
@@ -111,6 +112,9 @@ OCC_ARGS=(
 )
 if [[ -n "$OCC_WORKERS" ]]; then
   OCC_ARGS+=(--workers "$OCC_WORKERS")
+fi
+if [[ -n "$OCC_EXECUTOR" ]]; then
+  OCC_ARGS+=(--executor "$OCC_EXECUTOR")
 fi
 "$PYTHON" "${OCC_ARGS[@]}"
 

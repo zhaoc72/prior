@@ -103,6 +103,79 @@ def _run_with_executor(
                 raise RuntimeError(f"Failed to process {mesh_path}") from exc
 
 
+def _run_sequential(
+    meshes: list[Path],
+    mesh_dir: Path,
+    out_dir: Path,
+    n_surface: int,
+    n_uniform: int,
+) -> None:
+    for mesh_path in tqdm(meshes, desc="occ_sampling-sequential"):
+        _process_single(mesh_path, mesh_dir, out_dir, n_surface, n_uniform)
+
+
+def _run_thread_pool(
+    worker_count: int,
+    meshes: list[Path],
+    mesh_dir: Path,
+    out_dir: Path,
+    n_surface: int,
+    n_uniform: int,
+) -> None:
+    _run_with_executor(
+        ThreadPoolExecutor,
+        worker_count,
+        meshes,
+        mesh_dir,
+        out_dir,
+        n_surface,
+        n_uniform,
+        desc="occ_sampling-threads",
+    )
+
+
+def _run_process_pool(
+    worker_count: int,
+    meshes: list[Path],
+    mesh_dir: Path,
+    out_dir: Path,
+    n_surface: int,
+    n_uniform: int,
+    *,
+    fail_fast: bool,
+) -> None:
+    ctx = mp.get_context("spawn")
+    attempt_workers = worker_count
+    last_exc: BrokenProcessPool | None = None
+    while attempt_workers > 1:
+        try:
+            _run_with_executor(
+                ProcessPoolExecutor,
+                attempt_workers,
+                meshes,
+                mesh_dir,
+                out_dir,
+                n_surface,
+                n_uniform,
+                desc="occ_sampling",
+                mp_context=ctx,
+            )
+            return
+        except BrokenProcessPool as exc:
+            if fail_fast:
+                raise
+            last_exc = exc
+            next_workers = max(1, attempt_workers // 2)
+            print(
+                "Process pool crashed (likely due to native library fork-safety). "
+                f"Retrying with {next_workers} workers instead of {attempt_workers}."
+            )
+            attempt_workers = next_workers
+
+    if last_exc is not None:
+        raise last_exc
+
+
 def process_directory(
     mesh_dir: Path,
     out_dir: Path,
@@ -110,6 +183,7 @@ def process_directory(
     n_uniform: int,
     workers: int | None = None,
     skip_existing: bool = True,
+    executor: str = "auto",
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     meshes = sorted(mesh_dir.rglob("*.obj")) + sorted(mesh_dir.rglob("*.ply"))
@@ -128,62 +202,71 @@ def process_directory(
         if not meshes:
             return
 
-    worker_count = 1 if not workers or workers <= 1 else workers
+    worker_count = 1 if not workers or workers <= 1 else min(workers, len(meshes))
+
     if worker_count <= 1:
-        for mesh_path in tqdm(meshes, desc="occ_sampling"):
-            _process_single(mesh_path, mesh_dir, out_dir, n_surface, n_uniform)
+        _run_sequential(meshes, mesh_dir, out_dir, n_surface, n_uniform)
         return
 
-    attempt_workers = worker_count
-    last_exc: BrokenProcessPool | None = None
-    ctx = mp.get_context("spawn")
-    while attempt_workers > 1:
-        try:
-            _run_with_executor(
-                ProcessPoolExecutor,
-                attempt_workers,
-                meshes,
-                mesh_dir,
-                out_dir,
-                n_surface,
-                n_uniform,
-                desc="occ_sampling",
-                mp_context=ctx,
-            )
-            return
-        except BrokenProcessPool as exc:
-            last_exc = exc
-            print(
-                "Process pool crashed (likely due to native library fork-safety). "
-                f"Retrying with {max(1, attempt_workers // 2)} workers instead of {attempt_workers}."
-            )
-            attempt_workers = max(1, attempt_workers // 2)
+    exec_mode = executor.lower()
+    if exec_mode not in {"auto", "process", "thread"}:
+        raise ValueError(f"Unsupported executor mode: {executor}")
 
-    if last_exc is not None and worker_count > 1:
-        print(
-            "Process-based parallelism repeatedly failed. Switching to a thread "
-            f"pool with {worker_count} workers. Last error: {last_exc}"
-        )
+    if exec_mode == "thread":
+        print(f"Using thread pool with {worker_count} workers for occupancy sampling.")
+        _run_thread_pool(worker_count, meshes, mesh_dir, out_dir, n_surface, n_uniform)
+        return
+
+    if exec_mode == "process":
         try:
-            _run_with_executor(
-                ThreadPoolExecutor,
+            print(f"Using process pool with {worker_count} workers for occupancy sampling.")
+            _run_process_pool(
                 worker_count,
                 meshes,
                 mesh_dir,
                 out_dir,
                 n_surface,
                 n_uniform,
-                desc="occ_sampling-threads",
+                fail_fast=False,
             )
+            return
+        except BrokenProcessPool as exc:
+            print(
+                "Process-based parallelism repeatedly failed; falling back to "
+                f"sequential execution. Last error: {exc}"
+            )
+            _run_sequential(meshes, mesh_dir, out_dir, n_surface, n_uniform)
+            return
+
+    # Auto mode: try process pool once, fall back to threads, then sequential.
+    try:
+        print(
+            f"Trying process pool with {worker_count} workers for occupancy sampling (auto executor)."
+        )
+        _run_process_pool(
+            worker_count,
+            meshes,
+            mesh_dir,
+            out_dir,
+            n_surface,
+            n_uniform,
+            fail_fast=True,
+        )
+        return
+    except BrokenProcessPool as exc:
+        print(
+            "Process pool crashed (likely due to native library fork-safety). "
+            f"Switching to a thread pool with {worker_count} workers. Error: {exc}"
+        )
+        try:
+            _run_thread_pool(worker_count, meshes, mesh_dir, out_dir, n_surface, n_uniform)
             return
         except Exception as thread_exc:  # pragma: no cover - rare failure path
             print(
                 "Thread pool execution also failed; falling back to sequential "
                 f"processing. Error: {thread_exc}"
             )
-
-    for mesh_path in tqdm(meshes, desc="occ_sampling-sequential"):
-        _process_single(mesh_path, mesh_dir, out_dir, n_surface, n_uniform)
+            _run_sequential(meshes, mesh_dir, out_dir, n_surface, n_uniform)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -195,7 +278,13 @@ def parse_args() -> argparse.Namespace:
         "--workers",
         type=int,
         default=os.cpu_count() or 1,
-        help="Number of parallel worker processes (set 1 to disable)",
+        help="Number of parallel workers (set 1 to disable parallelism)",
+    )
+    parser.add_argument(
+        "--executor",
+        choices=("auto", "process", "thread"),
+        default="auto",
+        help="Parallel executor type: process (multiprocessing), thread, or auto fallback.",
     )
     parser.add_argument(
         "--no_skip_existing",
@@ -213,4 +302,5 @@ if __name__ == "__main__":
         args.n_uniform,
         args.workers,
         skip_existing=not args.no_skip_existing,
+        executor=args.executor,
     )
