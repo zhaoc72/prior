@@ -126,7 +126,7 @@ bash scripts/preprocess_pix3d.sh configs/pix3d.yaml
 3. **prepare_pix3d_metadata.py**：转换官方注释为摄像机参数 JSON。
 4. **build_index.py**：整合 mask、occupancy、摄像机和类别信息，生成训练/验证所需的索引文件。
 
-该脚本会自动调用 `python -m preprocess.pix3d_pipeline`，并在开始时打印解析后的路径、执行器以及各阶段的并发配置。额外的命令行参数（例如 `--recompute-occ` 或 `--occ-executor thread`）会透传给 Python 入口，可用于覆盖默认行为。
+该脚本会自动调用 `python -m preprocess.pix3d_pipeline`，并在开始时打印解析后的路径、执行器以及各阶段的并发配置。流水线默认使用进程池执行 occupancy 采样；额外的命令行参数（例如 `--recompute-occ` 或 `--occ-executor thread`）会透传给 Python 入口，可用于覆盖默认行为。
 
 其他数据集使用相应脚本：
 ```bash
@@ -205,9 +205,8 @@ export PREPROCESS_WORKERS=64
 export PIX3D_OCC_EXECUTOR=thread
 bash scripts/preprocess_pix3d.sh configs/pix3d.yaml
 ```
-环境变量优先级：数据集专属 > 通用 > Python 默认。
-对于 Pix3D，如果仅设置全局的 `PREPROCESS_OCC_EXECUTOR` 或 `PREPROCESS_EXECUTOR` 且取值不是 `process`，
-脚本会打印提示并继续使用进程池；如需线程池请显式设置 `PIX3D_OCC_EXECUTOR=thread` 或在命令行传入 `--occ-executor thread`。
+环境变量优先级：数据集专属 > 通用 > Python 默认。Pix3D 流水线默认使用进程池，并会尊重上述任何显式覆盖；若想改用线程池，可在命令行传入
+`--occ-executor thread` 或设置 `PIX3D_OCC_EXECUTOR=thread`。
 
 ### 7.4 监控与排障
 - 使用 `htop`/`pidstat` 观察 CPU 利用率；若进程频繁崩溃，可降低 `--workers` 或切换 `--executor thread`。

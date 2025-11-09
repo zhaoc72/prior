@@ -227,23 +227,19 @@ def _resolve_executor(args: argparse.Namespace) -> ExecutorSelection:
     global_override = os.environ.get("PREPROCESS_OCC_EXECUTOR")
     if global_override:
         selection = _normalise_executor(global_override, source="PREPROCESS_OCC_EXECUTOR")
-        if selection.value != "process":
-            print(
-                "Ignoring PREPROCESS_OCC_EXECUTOR="
-                f"{global_override} for Pix3D occupancy sampling; defaulting to 'process'."
-            )
-            return ExecutorSelection(value="process", source="default(process override)")
+        print(
+            "Using global occupancy executor override from PREPROCESS_OCC_EXECUTOR: "
+            f"{selection.value}"
+        )
         return selection
 
     legacy_override = os.environ.get("PREPROCESS_EXECUTOR")
     if legacy_override:
         selection = _normalise_executor(legacy_override, source="PREPROCESS_EXECUTOR")
-        if selection.value != "process":
-            print(
-                "Ignoring PREPROCESS_EXECUTOR="
-                f"{legacy_override} for Pix3D occupancy sampling; defaulting to 'process'."
-            )
-            return ExecutorSelection(value="process", source="default(process override)")
+        print(
+            "Using legacy PREPROCESS_EXECUTOR override for Pix3D occupancy sampling: "
+            f"{selection.value}"
+        )
         return selection
 
     return ExecutorSelection(value="process", source="default")
