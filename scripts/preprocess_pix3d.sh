@@ -15,10 +15,9 @@ if [[ ! -f "$CONFIG" ]]; then
   exit 1
 fi
 
-# Unless the caller explicitly provides an executor override, force the
-# Pix3D occupancy sampling step to use the process pool.  This keeps the
-# behaviour aligned with the original shell pipeline even when environment
-# variables request the thread executor.
+# Default to the process executor when neither the CLI nor environment provide
+# an explicit override so the behaviour stays aligned with the historical shell
+# pipeline.
 has_occ_executor=false
 for arg in "$@"; do
   if [[ $arg == --occ-executor ]]; then
@@ -30,8 +29,15 @@ for arg in "$@"; do
   fi
 done
 
+# Only append a process executor override when the caller has not provided one
+# via CLI *and* no environment variables have already requested a specific
+# executor. This allows PIX3D_OCC_EXECUTOR/PREPROCESS_* overrides (for example,
+# forcing threads on fork-unsafe systems) to take effect while keeping the
+# default aligned with the historical process-pool behaviour.
 if [[ $has_occ_executor == false ]]; then
-  set -- "$@" --occ-executor process
+  if [[ -z "${PIX3D_OCC_EXECUTOR:-}" && -z "${PREPROCESS_OCC_EXECUTOR:-}" && -z "${PREPROCESS_EXECUTOR:-}" ]]; then
+    set -- "$@" --occ-executor process
+  fi
 fi
 
 exec "$PYTHON" -m preprocess.pix3d_pipeline --config "$CONFIG" "$@"

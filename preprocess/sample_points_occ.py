@@ -231,9 +231,19 @@ def process_directory(
             )
             return
         except BrokenProcessPool as exc:
+            fallback_workers = min(worker_count, len(meshes))
+            if fallback_workers > 1:
+                print(
+                    "Process-based parallelism repeatedly failed. Switching to a "
+                    f"thread pool with {fallback_workers} workers. Last error: {exc}"
+                )
+                _run_thread_pool(
+                    fallback_workers, meshes, mesh_dir, out_dir, n_surface, n_uniform
+                )
+                return
             print(
-                "Process-based parallelism repeatedly failed; falling back to "
-                f"sequential execution. Last error: {exc}"
+                "Process-based parallelism repeatedly failed and no parallel "
+                f"fallback is available. Running sequentially instead. Last error: {exc}"
             )
             _run_sequential(meshes, mesh_dir, out_dir, n_surface, n_uniform)
             return

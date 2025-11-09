@@ -267,28 +267,43 @@ def run_pipeline(args: argparse.Namespace) -> None:
     print(f"  Occupancy outputs: {paths.occupancy_dir}")
     print(f"  Cameras JSON: {paths.cameras_json}")
     print(f"  Index file: {paths.index_file}")
-    if overrides.canonicalize:
-        print(f"  Canonicalize workers: {overrides.canonicalize}")
-    if overrides.occupancy:
-        print(f"  Occupancy workers: {overrides.occupancy}")
+    canonicalize_workers = overrides.canonicalize if overrides.canonicalize else 64
+    print(
+        "  Canonicalize workers: "
+        f"{canonicalize_workers}"
+        + (" (override from CLI/environment)" if overrides.canonicalize else " (default)")
+    )
     if overrides.index:
         print(f"  Index workers: {overrides.index} (build_index runs single-threaded)")
-    print(f"  Occupancy executor: {executor.value} (source: {executor.source})")
+
+    if overrides.occupancy:
+        print(
+            "  Occupancy worker override requested but occupancy sampling now runs sequentially; "
+            "override ignored."
+        )
+
+    if executor.source != "default":
+        print(
+            "  Occupancy executor override requested ("
+            f"{executor.value} from {executor.source}) but occupancy sampling runs sequentially; "
+            "override ignored."
+        )
+    print("  Occupancy sampling: sequential (workers=1)")
     print(f"  Skip existing occupancy files: {not args.recompute_occ}")
 
     canonicalize_directory(
         paths.raw_mesh_dir,
         paths.canonical_mesh_dir,
-        workers=overrides.canonicalize,
+        workers=canonicalize_workers,
     )
     process_directory(
         paths.canonical_mesh_dir,
         paths.occupancy_dir,
         args.n_surf,
         args.n_uniform,
-        overrides.occupancy,
+        workers=1,
         skip_existing=not args.recompute_occ,
-        executor=executor.value,
+        executor="auto",
     )
 
     metadata_args = SimpleNamespace(
