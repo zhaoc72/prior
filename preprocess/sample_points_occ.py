@@ -48,8 +48,12 @@ def sample_points(
 
     bounds_min = _as_float32(mesh.bounds[0])
     bounds_max = _as_float32(mesh.bounds[1])
-    uniform = _RNG.uniform(bounds_min, bounds_max, size=(n_uniform, 3), dtype=np.float32)
-    inside = mesh.contains(uniform.astype(np.float64))
+    # Older NumPy releases (e.g. 1.19) do not support the ``dtype`` keyword
+    # argument on ``Generator.uniform``.  Sample in float64 and downcast to
+    # float32 afterwards to keep memory usage predictable across environments.
+    uniform64 = _RNG.uniform(bounds_min, bounds_max, size=(n_uniform, 3))
+    uniform = uniform64.astype(np.float32, copy=False)
+    inside = mesh.contains(uniform.astype(np.float64, copy=False))
 
     total_points = n_surface + n_uniform
     points = np.empty((total_points, 3), dtype=np.float32)
