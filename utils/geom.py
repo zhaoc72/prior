@@ -41,13 +41,15 @@ def fps(points: np.ndarray, k: int, seed: int | None = None) -> np.ndarray:
     if len(points) < k:
         raise ValueError("Point cloud smaller than requested sample count")
 
+    pts = np.asarray(points, dtype=np.float64)
     rng = np.random.default_rng(seed)
-    selected = [rng.integers(len(points))]
-    distances = np.full(len(points), np.inf, dtype=np.float64)
+    selected = [int(rng.integers(len(pts)))]
+    distances = np.full(len(pts), np.inf, dtype=np.float64)
     for _ in range(1, k):
-        diff = points - points[selected[-1]]
-        dist = np.linalg.norm(diff, axis=1)
-        distances = np.minimum(distances, dist)
+        anchor = pts[selected[-1]]
+        diff = pts - anchor
+        dist_sq = np.einsum("ij,ij->i", diff, diff)
+        distances = np.minimum(distances, dist_sq)
         selected.append(int(np.argmax(distances)))
     return np.asarray(selected, dtype=np.int64)
 
@@ -57,14 +59,22 @@ def pca_cov(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError("Points should be of shape [N, 3]")
-    cov = np.cov(points.T)
+
+    pts = np.asarray(points, dtype=np.float64)
+    centered = pts - pts.mean(axis=0, keepdims=True)
+    denom = max(len(pts) - 1, 1)
+    cov = centered.T @ centered / denom
     vals, vecs = np.linalg.eigh(cov)
     vals = np.clip(vals, 1e-6, None)
     return vals.astype(np.float32), vecs.astype(np.float32)
 
 
 def init_gaussians_from_pointcloud(
-    points: np.ndarray, K: int = 2048, knn: int = 64, seed: int | None = None
+    points: np.ndarray,
+    K: int = 2048,
+    knn: int = 64,
+    seed: int | None = None,
+    n_jobs: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Initialise Gaussian parameters from a canonical point cloud."""
 
@@ -73,7 +83,10 @@ def init_gaussians_from_pointcloud(
 
     idx = fps(points, K, seed=seed)
     centers = points[idx]
-    nbrs = NearestNeighbors(n_neighbors=knn).fit(points)
+    nn_kwargs: dict[str, int] = {}
+    if n_jobs is not None:
+        nn_kwargs["n_jobs"] = n_jobs
+    nbrs = NearestNeighbors(n_neighbors=knn, **nn_kwargs).fit(points)
     _, indices = nbrs.kneighbors(centers)
 
     scales = []

@@ -73,6 +73,43 @@ bash scripts/preprocess_vkitti2.sh configs/vkitti2.yaml
 ```
 > 预处理时间依赖于 mesh 数量与采样点数；可在脚本内调整 `--n_surf`、`--n_uniform` 等参数控制精度与耗时。
 
+### 3.1 利用 64 核 CPU 加速预处理
+
+数据预处理阶段包含大量独立的文件级任务，现已在下列脚本中加入多进程开关，可充分利用多核 CPU：
+
+| 脚本 | 新增关键参数 | 说明 |
+|------|--------------|------|
+| `preprocess/canonicalize_meshes.py` | `--workers` | 将 mesh canonical 化任务拆分到多个进程；默认使用 `os.cpu_count()`，设置为 `1` 即可恢复单进程。 |
+| `preprocess/sample_points_occ.py` | `--workers` | 并行采样表面点与 Occupancy 点，建议与磁盘带宽协同调整。 |
+| `preprocess/init_gaussians.py` | `--workers`、`--nn_jobs` | `--workers` 控制进程数，`--nn_jobs` 会传递给 `sklearn.NearestNeighbors`，用于控制每个进程内部的线程数（例如设置为 `8`）。 |
+
+建议在正式运行前手动执行一次以验证性能：
+
+```bash
+# Canonical 化
+python preprocess/canonicalize_meshes.py \
+  --src <raw_mesh_dir> \
+  --dst <canonical_mesh_dir> \
+  --workers 64
+
+# Occupancy 采样
+python preprocess/sample_points_occ.py \
+  --mesh_dir <canonical_mesh_dir> \
+  --out <occ_output_dir> \
+  --workers 64
+
+# 高斯初始化（例如 16 个进程，每个进程 8 线程）
+export OMP_NUM_THREADS=8
+export MKL_NUM_THREADS=8
+python preprocess/init_gaussians.py \
+  --points_dir <occ_output_dir> \
+  --out <gaussian_output_dir> \
+  --workers 16 \
+  --nn_jobs 8
+```
+
+> **线程/进程配比建议**：在 2×32 核 Intel Xeon 8336C + 256 GB 内存环境下，可先尝试 `workers × nn_jobs ≈ 64` 的组合，并通过 `htop` 或 `pidstat` 观察 CPU 利用率与上下文切换，必要时调整线程环境变量（`OMP_NUM_THREADS`、`MKL_NUM_THREADS`、`NUMEXPR_NUM_THREADS`）。
+
 若需要验证/测试索引，可在预处理完成后手动执行：
 ```bash
 python preprocess/build_index.py \
