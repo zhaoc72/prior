@@ -80,7 +80,7 @@ bash scripts/preprocess_vkitti2.sh configs/vkitti2.yaml
 | 脚本 | 新增关键参数 | 说明 |
 |------|--------------|------|
 | `preprocess/canonicalize_meshes.py` | `--workers` | 将 mesh canonical 化任务拆分到多个进程；默认使用 `os.cpu_count()`，设置为 `1` 即可恢复单进程。 |
-| `preprocess/sample_points_occ.py` | `--workers` | 并行采样表面点与 Occupancy 点，建议与磁盘带宽协同调整。 |
+| `preprocess/sample_points_occ.py` | `--workers`、`--no_skip_existing` | 并行采样表面点与 Occupancy 点，并默认跳过已生成的 `.npz`；如需强制重算可加 `--no_skip_existing`。脚本会在遇到 `BrokenProcessPool` 时自动缩减进程数再重试，如仍失败会切换到线程池继续并行处理，最后才退回单进程。 |
 | `preprocess/init_gaussians.py` | `--workers`、`--nn_jobs` | `--workers` 控制进程数，`--nn_jobs` 会传递给 `sklearn.NearestNeighbors`，用于控制每个进程内部的线程数（例如设置为 `8`）。 |
 
 建议在正式运行前手动执行一次以验证性能：
@@ -92,7 +92,7 @@ python preprocess/canonicalize_meshes.py \
   --dst <canonical_mesh_dir> \
   --workers 64
 
-# Occupancy 采样
+# Occupancy 采样（如需覆盖旧结果可追加 --no_skip_existing）
 python preprocess/sample_points_occ.py \
   --mesh_dir <canonical_mesh_dir> \
   --out <occ_output_dir> \
@@ -109,8 +109,11 @@ python preprocess/init_gaussians.py \
 ```
 
 > **关于 `BrokenProcessPool` 的提示**：部分第三方几何/线性代数库在 Linux 上采用 `fork` 后会出现段错误或被系统杀死，表现为主进程报错
-> `concurrent.futures.process.BrokenProcessPool`。脚本已强制使用 `spawn` 上下文并在异常发生时自动回退至单进程重试；如果仍然遇到该
-> 提示，请降低 `--workers` 或调低 `OMP_NUM_THREADS`/`MKL_NUM_THREADS`，并根据终端日志定位具体文件。
+> `concurrent.futures.process.BrokenProcessPool`。脚本已强制使用 `spawn` 上下文并在异常发生时自动把进程数减半后重试；若缩减后依旧失败，
+> 会自动切换到线程池继续并行处理，只有线程池也失败时才会改用单进程。若仍然遇到该提示，请主动降低 `--workers` 或调低 `OMP_NUM_THREADS`
+> /`MKL_NUM_THREADS`，并根据终端日志定位具体文件。
+
+> **线程数默认值**：为避免单个工作进程内部再创建大量 OpenMP/MKL 线程，上述脚本会在未设置相关环境变量时默认把 `OMP_NUM_THREADS` 与 `MKL_NUM_THREADS` 设为 `1`。如需更高的内部并行度，可在运行前显式导出所需的线程数（例如 `export OMP_NUM_THREADS=4`）。
 
 > **线程/进程配比建议**：在 2×32 核 Intel Xeon 8336C + 256 GB 内存环境下，可先尝试 `workers × nn_jobs ≈ 64` 的组合，并通过 `htop` 或 `pidstat` 观察 CPU 利用率与上下文切换，必要时调整线程环境变量（`OMP_NUM_THREADS`、`MKL_NUM_THREADS`、`NUMEXPR_NUM_THREADS`）。
 
